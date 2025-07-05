@@ -101,6 +101,20 @@ const char Configuration[] PROGMEM = R"=====(
             <button type="button" name="deleteUSBButton" onclick="deleteUSBConfig()">Delete USB Config</button>
         </form>
 
+        <form id="hidxForm">
+            <div class="section-header">HIDX Configuration</div>
+            <div class="form-group">
+                <label for="hidx_ip">HIDX Server IP:</label>
+                <input type="text" id="hidx_ip" name="hidx_ip" class="terminal-style">
+            </div>
+            <div class="form-group">
+                <label for="hidx_port">HIDX Server Port:</label>
+                <input type="number" id="hidx_port" name="hidx_port" value="4444" class="terminal-style">
+            </div>
+            <button type="button" onclick="applyHIDX()">Apply HIDX Config</button>
+            <button type="button" name="deleteHIDXButton" onclick="deleteHIDXConfig()">Delete HIDX Config</button>
+        </form>
+
         <form id="hostnameForm">
             <div class="form-group">
                 <div class="section-header">Hostname</div>
@@ -305,6 +319,50 @@ const char Configuration[] PROGMEM = R"=====(
                 showMessage('error', 'Error updating hostname');
                 console.error('Error:', error);
             });
+        }
+
+        function applyHIDX() {
+            const ip = document.getElementById('hidx_ip').value;
+            const port = document.getElementById('hidx_port').value;
+
+            fetch('/updatehidx', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ hidx_ip: ip, hidx_port: port }),
+            })
+            .then(response => response.text())
+            .then(data => {
+                showMessage('success', 'HIDX configuration saved!');
+            })
+            .catch(error => {
+                showMessage('error', 'Error saving HIDX config');
+            });
+        }
+
+        function deleteHIDXConfig() {
+            if (confirm('Are you sure you want to delete the HIDX configuration?')) {
+                fetch('/deletehidxconfig', {
+                    method: 'POST'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    }
+                    throw new Error('Network response was not ok');
+                })
+                .then(data => {
+                    showMessage('success', 'HIDX configuration deleted successfully!');
+                    // Clear form fields
+                    document.getElementById('hidx_ip').value = '';
+                    document.getElementById('hidx_port').value = '1234';
+                })
+                .catch(error => {
+                    showMessage('error', 'Error deleting HIDX configuration: ' + error.message);
+                    console.error('Error:', error);
+                });
+            }
         }
 
         function clearCache() {

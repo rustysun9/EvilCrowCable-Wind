@@ -91,12 +91,13 @@ const char LivePayload[] PROGMEM = R"=====(
                         <tr><td class="command-cell">RunPowershellAdmin</td><td>RunPowershellAdmin</td><td>Run powershell as administrator</td></tr>
                         <tr><td class="command-cell">RunCmdAdmin</td><td>RunCmdAdmin</td><td>Run cmd as administrator</td></tr>
                         <tr><td class="command-cell">ShellWin</td><td>ShellWin IP</td><td>Read the "Remote Shell" section for more information</td></tr>
-                        <tr><td class="command-cell">RunNix</td><td>RunNix getit</td><td>Runs a command or a program on the victim's computer</td></tr>
-                        <tr><td class="command-cell">RunLauncher</td><td>RunLauncher Libreoffice</td><td>Runs a command or a program on the victim's computer</td></tr>
-                        <tr><td class="command-cell">CtrlAltT</td><td>CtrlAltT</td><td>Run a terminal on the victim's computer</td></tr>
                         <tr><td class="command-cell">ShellNix</td><td>ShellNix IP</td><td>Read the "Remote Shell" section for more information</td></tr>
                         <tr><td class="command-cell">ShellMac</td><td>ShellMac IP</td><td>Read the "Remote Shell" section for more information</td></tr>
                         <tr><td class="command-cell">ShellMacCleanup</td><td>ShellMacCleanup</td><td>Read the "Remote Shell" section for more information</td></tr>
+                        <tr><td class="command-cell">HIDXShell</td><td>HIDXShell</td><td>Read the "Remote Shell" section for more information</td></tr>
+                        <tr><td class="command-cell">RunNix</td><td>RunNix getit</td><td>Runs a command or a program on the victim's computer</td></tr>
+                        <tr><td class="command-cell">RunLauncher</td><td>RunLauncher Libreoffice</td><td>Runs a command or a program on the victim's computer</td></tr>
+                        <tr><td class="command-cell">CtrlAltT</td><td>CtrlAltT</td><td>Run a terminal on the victim's computer</td></tr>
                         <tr><td class="command-cell">RunMac</td><td>RunMac terminal</td><td>Runs a command or a program on the victim's computer</td></tr>
                         <tr><td class="command-cell">GuiR</td><td>GuiR</td><td>Press WINDOWS+R on the victim's computer</td></tr>
                         <tr><td class="command-cell">Gui</td><td>Gui</td><td>Press WINDOWS on the victim's computer</td></tr>
@@ -205,6 +206,7 @@ const char LivePayload[] PROGMEM = R"=====(
             'ShellNix',
             'ShellMac',
             'ShellMacCleanup',
+            'HIDXShell',
             'RunMac',
             'GuiR',
             'Gui',
@@ -394,6 +396,10 @@ const char LivePayload[] PROGMEM = R"=====(
                     message: 'requires IP address or ipaddress:port'
                 },
                 'ShellMacCleanup': {
+                    validate: args => args.length === 0,
+                    message: 'takes no arguments'
+                },
+                'HIDXShell': {
                     validate: args => args.length === 0,
                     message: 'takes no arguments'
                 },

